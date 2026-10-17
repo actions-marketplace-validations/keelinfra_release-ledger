@@ -109,9 +109,18 @@ def versioned(purl):
 
 
 def cmd_sbom_export(args):
-    data = http_json(
-        f"{GITHUB_API}/repos/{args.repo}/dependency-graph/sbom", token=args.token
-    )
+    try:
+        data = http_json(
+            f"{GITHUB_API}/repos/{args.repo}/dependency-graph/sbom", token=args.token
+        )
+    except urllib.error.HTTPError as e:
+        if e.code not in (403, 404):
+            raise
+        sys.exit(
+            f"No dependency-graph SBOM for {args.repo} (HTTP {e.code}). Turn on the"
+            " dependency graph (Settings > Advanced Security), or pass an SBOM from"
+            " your build with `sbom:`."
+        )
     with open(args.out, "w") as f:
         json.dump(data["sbom"], f, indent=2)
         f.write("\n")

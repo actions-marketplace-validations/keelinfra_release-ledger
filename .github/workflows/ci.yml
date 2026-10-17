@@ -44,7 +44,8 @@ jobs:
           print("flagged:", hit[0]["exploited"])
           PY
 
-  # The record action end to end, attestations included (public repo).
+  # The record action end to end, attestations included (public repo). The SBOM
+  # is a fixture: this repo has no dependencies for the dependency graph to export.
   record-action:
     runs-on: ubuntu-24.04
     if: github.event_name == 'push'
@@ -60,6 +61,7 @@ jobs:
         with:
           support-until: "2031-12-31"
           version: ci-${{ github.run_number }}
+          sbom: tests/fixtures/cyclonedx.json
           subject-path: ${{ runner.temp }}/self.tar.gz
           upload: "false"
       - name: Check the evidence
@@ -73,5 +75,6 @@ jobs:
           assert e["schema"] == "release-ledger/v1"
           assert len(e["attestations"]) == 2, e["attestations"]
           assert e["subjects"][0]["name"] == "self.tar.gz"
+          assert e["sbom"]["packages"] == 3, e["sbom"]
           assert e["security_policy"], "SECURITY.md not linked"
           PY

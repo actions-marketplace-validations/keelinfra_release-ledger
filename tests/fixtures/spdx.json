@@ -1,0 +1,16 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "example",
+  "packages": [
+    {"name": "npm:lodash", "versionInfo": "4.17.20",
+     "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
+                       "referenceLocator": "pkg:npm/lodash@4.17.20"}]},
+    {"name": "npm:express", "versionInfo": "^4.18.0",
+     "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
+                       "referenceLocator": "pkg:npm/express@%5E4.18.0"}]},
+    {"name": "actions:actions/checkout", "versionInfo": "4.*.*",
+     "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
+                       "referenceLocator": "pkg:githubactions/actions/checkout@4.%2A.%2A"}]}
+  ]
+}

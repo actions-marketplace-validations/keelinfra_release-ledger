@@ -1,0 +1,135 @@
+---
+name: release-ledger record
+description: >-
+  EU Cyber Resilience Act evidence for a release: SBOM, signed provenance,
+  support period, attached to the GitHub release as cra-evidence.json.
+author: keelinfra
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  support-until:
+    description: Last day of security support for this release (YYYY-MM-DD). The CRA expects at least five years.
+    required: true
+  product:
+    description: Product name recorded in the evidence.
+    default: ${{ github.event.repository.name }}
+  version:
+    description: "Release version. Default: the tag name without a leading v."
+    default: ""
+  sbom:
+    description: >-
+      Path to a CycloneDX or SPDX JSON SBOM your build produced. Default: export
+      one from GitHub's dependency graph (manifest-based; a build-time SBOM is
+      more accurate).
+    default: ""
+  subject-path:
+    description: >-
+      Released files to sign build-provenance and SBOM attestations for (newline
+      list or glob). Needs `id-token: write` and `attestations: write`. Empty: no
+      attestation.
+    default: ""
+  security-policy:
+    description: Path of the vulnerability disclosure policy in the repository.
+    default: SECURITY.md
+  upload:
+    description: Attach the SBOM and cra-evidence.json to the GitHub release of this tag.
+    default: "true"
+  token:
+    description: Token for the dependency graph and the release upload.
+    default: ${{ github.token }}
+
+outputs:
+  evidence:
+    description: Path of cra-evidence.json.
+    value: ${{ steps.record.outputs.evidence }}
+  sbom:
+    description: Path of the SBOM recorded in the evidence.
+    value: ${{ steps.prepare.outputs.sbom }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare SBOM
+      id: prepare
+      shell: bash
+      env:
+        LEDGER: ${{ github.action_path }}/ledger.py
+        INPUT_SBOM: ${{ inputs.sbom }}
+        INPUT_VERSION: ${{ inputs.version }}
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        out="$RUNNER_TEMP/release-ledger"
+        mkdir -p "$out"
+        version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
+        if [ -n "$INPUT_SBOM" ]; then
+          sbom="$out/$(basename "$INPUT_SBOM")"
+          cp "$INPUT_SBOM" "$sbom"
+        else
+          sbom="$out/${GITHUB_REPOSITORY##*/}-$version.spdx.json"
+          python3 "$LEDGER" sbom-export --out "$sbom"
+        fi
+        {
+          echo "dir=$out"
+          echo "sbom=$sbom"
+          echo "version=$version"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Attest build provenance
+      id: provenance
+      if: inputs.subject-path != ''
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6  # v4.2.2
+      with:
+        subject-path: ${{ inputs.subject-path }}
+
+    - name: Attest SBOM
+      id: sbom-attestation
+      if: inputs.subject-path != ''
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6  # v4.2.2
+      with:
+        subject-path: ${{ inputs.subject-path }}
+        sbom-path: ${{ steps.prepare.outputs.sbom }}
+
+    - name: Record evidence
+      id: record
+      shell: bash
+      env:
+        LEDGER: ${{ github.action_path }}/ledger.py
+        DIR: ${{ steps.prepare.outputs.dir }}
+        SBOM: ${{ steps.prepare.outputs.sbom }}
+        VERSION: ${{ steps.prepare.outputs.version }}
+        PRODUCT: ${{ inputs.product }}
+        SUPPORT_UNTIL: ${{ inputs.support-until }}
+        SUBJECTS: ${{ inputs.subject-path }}
+        POLICY: ${{ inputs.security-policy }}
+        PROVENANCE_URL: ${{ steps.provenance.outputs.attestation-url }}
+        SBOM_ATTESTATION_URL: ${{ steps.sbom-attestation.outputs.attestation-url }}
+      run: |
+        args=()
+        while IFS= read -r pattern; do
+          [ -n "$pattern" ] || continue
+          # shellcheck disable=SC2086  # the pattern is meant to glob
+          for f in $pattern; do [ -f "$f" ] && args+=(--subject "$f"); done
+        done <<< "$SUBJECTS"
+        python3 "$LEDGER" record \
+          --product "$PRODUCT" --version "$VERSION" --support-until "$SUPPORT_UNTIL" \
+          --sbom "$SBOM" --security-policy "$POLICY" \
+          --attestation "$PROVENANCE_URL" --attestation "$SBOM_ATTESTATION_URL" \
+          "${args[@]}" --out "$DIR/cra-evidence.json"
+        echo "evidence=$DIR/cra-evidence.json" >> "$GITHUB_OUTPUT"
+
+    - name: Attach to the release
+      if: inputs.upload == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        EVIDENCE: ${{ steps.record.outputs.evidence }}
+        SBOM: ${{ steps.prepare.outputs.sbom }}
+      run: |
+        if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+          echo "::warning::No GitHub release for $GITHUB_REF_NAME yet; create it first, or attach $EVIDENCE yourself." \
+            "The monitor only sees releases that carry cra-evidence.json."
+          exit 0
+        fi
+        gh release upload "$GITHUB_REF_NAME" "$EVIDENCE" "$SBOM" --clobber --repo "$GITHUB_REPOSITORY"

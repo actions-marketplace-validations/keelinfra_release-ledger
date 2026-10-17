@@ -1,0 +1,77 @@
+---
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: unit (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tests -v
+
+  # Against the live services: an SBOM with log4j-core 2.14.1 must come back
+  # with CVE-2021-44228 flagged as exploited, and the step must fail.
+  live-monitor:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Monitor a known-exploited SBOM
+        run: |
+          set +e
+          python3 ledger.py monitor --sbom tests/fixtures/cyclonedx.json --version fixture \
+            --out findings.json
+          code=$?
+          set -e
+          test "$code" = 1
+          python3 - <<'PY'
+          import json
+          f = json.load(open("findings.json"))["releases"][0]["findings"]
+          hit = [x for x in f if "CVE-2021-44228" in x["cves"]]
+          assert hit and "CISA KEV" in hit[0]["exploited"], f
+          print("flagged:", hit[0]["exploited"])
+          PY
+
+  # The record action end to end, attestations included (public repo).
+  record-action:
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - run: git archive --format=tar.gz -o "$RUNNER_TEMP/self.tar.gz" HEAD
+      - id: ledger
+        uses: ./
+        with:
+          support-until: "2031-12-31"
+          version: ci-${{ github.run_number }}
+          subject-path: ${{ runner.temp }}/self.tar.gz
+          upload: "false"
+      - name: Check the evidence
+        env:
+          EVIDENCE: ${{ steps.ledger.outputs.evidence }}
+        run: |
+          cat "$EVIDENCE"
+          python3 - <<'PY'
+          import json, os
+          e = json.load(open(os.environ["EVIDENCE"]))
+          assert e["schema"] == "release-ledger/v1"
+          assert len(e["attestations"]) == 2, e["attestations"]
+          assert e["subjects"][0]["name"] == "self.tar.gz"
+          assert e["security_policy"], "SECURITY.md not linked"
+          PY

@@ -1,0 +1,48 @@
+---
+name: release-ledger monitor
+description: >-
+  Check every release still in its support period against OSV, and flag
+  vulnerabilities that CISA KEV or ENISA's EUVD list as actively exploited.
+author: keelinfra
+branding:
+  icon: eye
+  color: red
+
+inputs:
+  open-issues:
+    description: Open a GitHub issue (label "cra") for each actively exploited vulnerability, once.
+    default: "true"
+  fail-on:
+    description: "Fail the step on: exploited (default), any, or never."
+    default: exploited
+  euvd:
+    description: Also check ENISA's EU Vulnerability Database list of exploited vulnerabilities.
+    default: "true"
+  token:
+    description: Token that can read releases and open issues.
+    default: ${{ github.token }}
+
+outputs:
+  findings:
+    description: Path of a JSON file with every finding.
+    value: ${{ steps.monitor.outputs.findings }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check supported releases
+      id: monitor
+      shell: bash
+      env:
+        LEDGER: ${{ github.action_path }}/../ledger.py
+        GITHUB_TOKEN: ${{ inputs.token }}
+        OPEN_ISSUES: ${{ inputs.open-issues }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        EUVD: ${{ inputs.euvd }}
+      run: |
+        findings="$RUNNER_TEMP/release-ledger-findings.json"
+        echo "findings=$findings" >> "$GITHUB_OUTPUT"
+        flags=()
+        [ "$OPEN_ISSUES" = "true" ] || flags+=(--no-open-issues)
+        [ "$EUVD" = "true" ] || flags+=(--no-euvd)
+        python3 "$LEDGER" monitor --fail-on "$FAIL_ON" --out "$findings" "${flags[@]}"

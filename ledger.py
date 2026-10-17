@@ -373,12 +373,15 @@ def open_issue(repo, token, title, body):
     for item in found.get("items", []):
         if item["title"] == title:
             return item["html_url"]
-    created = http_json(
-        f"{GITHUB_API}/repos/{repo}/issues",
-        data={"title": title, "body": body, "labels": ["cra"]},
-        token=token,
-        method="POST",
-    )
+    issue = {"title": title, "body": body, "labels": ["cra"]}
+    url = f"{GITHUB_API}/repos/{repo}/issues"
+    try:
+        created = http_json(url, data=issue, token=token, method="POST")
+    except urllib.error.HTTPError as e:
+        if e.code != 422:  # e.g. the token may not create the label
+            raise
+        del issue["labels"]
+        created = http_json(url, data=issue, token=token, method="POST")
     return created["html_url"]
 
 

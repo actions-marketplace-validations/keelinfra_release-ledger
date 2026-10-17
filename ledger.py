@@ -81,6 +81,30 @@ def sbom_format(sbom):
     raise ValueError("not a CycloneDX or SPDX JSON document")
 
 
+def attestation_problem(sbom):
+    """Why actions/attest would refuse this SBOM, or None.
+
+    It wants a CycloneDX serialNumber, or an SPDX SPDXID, besides the format.
+    """
+    try:
+        sbom_format(sbom)
+    except ValueError as e:
+        return str(e)
+    if sbom.get("bomFormat") == "CycloneDX" and not sbom.get("serialNumber"):
+        return "CycloneDX SBOM has no serialNumber (urn:uuid:...)"
+    if "spdxVersion" in sbom and not sbom.get("SPDXID"):
+        return "SPDX SBOM has no SPDXID"
+    return None
+
+
+def cmd_sbom_check(args):
+    with open(args.sbom) as f:
+        problem = attestation_problem(json.load(f))
+    if problem:
+        sys.exit(f"{args.sbom}: {problem}. SBOM attestations need it.")
+    print(f"{args.sbom}: ok")
+
+
 def purls(sbom):
     """Every package URL in a CycloneDX or SPDX JSON SBOM, de-duplicated."""
     found = []
@@ -488,6 +512,10 @@ def main(argv=None):
     s.add_argument("--token", default=token)
     s.add_argument("--out", required=True)
     s.set_defaults(func=cmd_sbom_export)
+
+    c = sub.add_parser("sbom-check", help="check an SBOM can be attested")
+    c.add_argument("sbom")
+    c.set_defaults(func=cmd_sbom_check)
 
     r = sub.add_parser("record", help="write cra-evidence.json for a release")
     r.add_argument("--product", required=True)

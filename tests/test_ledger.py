@@ -74,6 +74,12 @@ class PurlTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             ledger.sbom_format({"hello": 1})
 
+    def test_attestable(self):
+        self.assertIsNone(ledger.attestation_problem(load("cyclonedx.json")))
+        self.assertIsNone(ledger.attestation_problem(load("spdx.json")))
+        bare = {"bomFormat": "CycloneDX", "specVersion": "1.6"}
+        self.assertIn("serialNumber", ledger.attestation_problem(bare))
+
 
 class CheckTest(unittest.TestCase):
     def test_exploited_flagged(self):

@@ -70,6 +70,7 @@ runs:
           sbom="$out/${GITHUB_REPOSITORY##*/}-$version.spdx.json"
           python3 "$LEDGER" sbom-export --out "$sbom"
         fi
+        python3 "$LEDGER" sbom-check "$sbom"
         {
           echo "dir=$out"
           echo "sbom=$sbom"

@@ -18,6 +18,10 @@ release-ledger is two GitHub Actions:
   or [ENISA's EUVD](https://euvd.enisa.europa.eu). The issue carries the Article 14 checklist:
   24-hour early warning, 72-hour notification, final report.
 
+A hosted service is in development: every shipped version watched for its whole support
+period, alerts by email, a drafted Article 14 report and an EU evidence archive. Join the
+waitlist at [keelinfra.io/cra](https://keelinfra.io/cra/).
+
 Standard library Python, no dependencies to install. The only actions it calls are GitHub's own
 [`actions/attest`](https://github.com/actions/attest), pinned to a commit.
 

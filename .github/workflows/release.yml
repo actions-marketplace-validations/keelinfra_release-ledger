@@ -21,7 +21,28 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP/$name.tar.gz" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
+      # release-ledger has no dependencies, so its SBOM lists only itself.
+      - name: SBOM
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - > "$RUNNER_TEMP/release-ledger.cdx.json" <<'PY'
+          import json, os, uuid
+          ver = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          purl = f"pkg:github/{os.environ['REPO']}@{os.environ['GITHUB_REF_NAME']}"
+          print(json.dumps({
+              "bomFormat": "CycloneDX",
+              "specVersion": "1.6",
+              "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+              "version": 1,
+              "metadata": {"component": {
+                  "type": "application", "name": "release-ledger", "version": ver,
+                  "purl": purl, "licenses": [{"license": {"id": "Apache-2.0"}}]}},
+              "components": [],
+          }, indent=2))
+          PY
       - uses: ./
         with:
           support-until: "2031-12-31"
+          sbom: ${{ runner.temp }}/release-ledger.cdx.json
           subject-path: ${{ runner.temp }}/release-ledger-*.tar.gz

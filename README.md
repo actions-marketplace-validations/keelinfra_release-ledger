@@ -44,12 +44,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # ... build your release files into dist/ ...
-      - uses: keelinfra/release-ledger@<commit sha>
+      - uses: keelinfra/release-ledger@<commit sha>  # v0.1.0
         with:
           support-until: "2031-12-31"
           subject-path: dist/*
           # sbom: build/bom.json   # recommended: an SBOM from your build
 ```
+
+Pin the action to the full commit SHA of a [release](https://github.com/keelinfra/release-ledger/releases),
+not to the tag.
 
 Without `sbom`, it exports one from GitHub's
 [dependency graph](https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/exporting-a-software-bill-of-materials-for-your-repository).
@@ -96,7 +99,7 @@ jobs:
   monitor:
     runs-on: ubuntu-latest
     steps:
-      - uses: keelinfra/release-ledger/monitor@<commit sha>
+      - uses: keelinfra/release-ledger/monitor@<commit sha>  # v0.1.0
 ```
 
 The job summary lists each supported release, how many packages were checked, and how many known

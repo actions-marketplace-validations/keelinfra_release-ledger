@@ -1,5 +1,5 @@
 ---
-name: release-ledger monitor
+name: CRA Release Ledger monitor
 description: >-
   Check every release still in its support period against OSV, and flag
   vulnerabilities that CISA KEV or ENISA's EUVD list as actively exploited.

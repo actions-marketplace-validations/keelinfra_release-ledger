@@ -1,8 +1,7 @@
 ---
 name: CRA Release Ledger
 description: >-
-  EU Cyber Resilience Act evidence for a release: SBOM, signed provenance,
-  support period, attached to the GitHub release as cra-evidence.json.
+  EU Cyber Resilience Act evidence per release: SBOM, signed provenance and support period, attached to the release.
 author: keelinfra
 branding:
   icon: shield
